@@ -1,10 +1,10 @@
-import pandas as pd
 import datetime
 import os
 import sys
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from decimal import Decimal, ROUND_HALF_UP
 
+import pandas as pd
 
 # Função para pegar o último dia do mês anterior
 
@@ -41,7 +41,7 @@ def arredondar(valor):
     return float(Decimal(valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
-# Função para escrever no log
+# Função para escrever no ‘log’
 
 
 def escrever_no_log(mensagem, caminho_log):
@@ -57,7 +57,7 @@ def escrever_no_log(mensagem, caminho_log):
         print(f"Erro ao escrever no log: {e}")
 
 
-# Template para importação
+# Modelo para importação
 
 TEMPLATE_IMPORTACAO_BASE = {
     "CODIGO DA EMPRESA": "07  ",
@@ -97,30 +97,9 @@ def nome_documento(tipo: str) -> str:
 def salvar_excel_formatado(
     df: pd.DataFrame, caminho_saida: str, caminho_log: str, colunas_formatar=None
 ):
-    """
-    Salva o DataFrame em Excel com formatação visual de 2 casas decimais para colunas numéricas.
-
-    Parâmetros:
-    - df: DataFrame a ser salvo
-    - caminho_saida: Caminho do arquivo Excel de saída
-    - caminho_log: Caminho para salvar os logs
-    - colunas_formatar: Lista de nomes das colunas para aplicar formatação visual (ex: ["VALOR"])
-    """
-    if colunas_formatar is None:
-        colunas_formatar = ["VALOR"]
-
     try:
-        with pd.ExcelWriter(caminho_saida, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False, sheet_name="Sheet1")
-            workbook = writer.book
-            worksheet = writer.sheets["Sheet1"]
-
-            formato_decimal = workbook.add_format({"num_format": "#,##0.00"})
-
-            for coluna in colunas_formatar:
-                if coluna in df.columns:
-                    col_index = df.columns.get_loc(coluna)
-                    worksheet.set_column(col_index, col_index, 12, formato_decimal)
+        # Salva o DataFrame diretamente sem aplicar formatação
+        df.to_excel(caminho_saida, index=False, sheet_name="Sheet1")
 
         escrever_no_log(f"✅ Arquivo gerado com sucesso: {caminho_saida}", caminho_log)
 
@@ -471,11 +450,32 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
 # Função para iterar por arquivos e processar conforme necessário
 
 
+def pedir_codigo_al(arquivo):
+    """Função para pedir o código AL de forma genérica para qualquer arquivo."""
+    while True:
+        codigo_al = input(f"Digite o código AL para o arquivo {arquivo}: ").strip()
+
+        if not codigo_al:
+            print("⚠️ Código AL inválido ou não informado. Tente novamente.")
+            continue  # Volta ao início do loop para pedir novamente
+
+        # Verifica se o código já começa com "AL " (com espaço)
+        if codigo_al.upper().startswith("AL "):
+            break
+        # Se começa com "AL" mas sem o espaço, adiciona o espaço
+        elif codigo_al.upper().startswith("AL"):
+            codigo_al = "AL " + codigo_al[2:].strip()
+            break
+        else:
+            # Se não começa com AL, adiciona do zero
+            codigo_al = "AL " + codigo_al
+            break
+    return codigo_al
+
+
 def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
     arquivos = ["ME.xlsx", "OD.xlsx", "RF.xlsx"]
-    arquivos_gerados = (
-        []
-    )  # Lista para armazenar os arquivos que foram gerados com sucesso
+    arquivos_gerados = []  # Lista para armazenar os arquivos que foram gerados com sucesso
 
     for arquivo in arquivos:
         caminho_entrada = os.path.join(pasta_entrada, arquivo)
@@ -489,6 +489,10 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
             continue  # Pula para o próximo arquivo
 
         try:
+            # Definir o caminho de saída e o caminho de log antes das condições
+            caminho_saida = None
+            caminho_log = None
+
             if arquivo == "ME.xlsx":
                 caminho_saida = os.path.join(
                     pasta_saida, f"ME{ano_mes_anterior()}.xlsx"
@@ -496,27 +500,7 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
                 caminho_log = os.path.join(
                     pasta_logs, f"log_processamento_me{ano_mes_anterior()}.txt"
                 )
-                while True:
-                    codigo_al_me = input(
-                        "Digite o código AL para o arquivo ME: "
-                    ).strip()
-
-                    if not codigo_al_me:
-                        print("⚠️ Código AL inválido ou não informado. Tente novamente.")
-                        continue  # Volta ao início do loop para pedir novamente
-
-                    # Verifica se o código já começa com "AL " (com espaço)
-                    if codigo_al_me.upper().startswith("AL "):
-                        break
-                    # Se começa com "AL" mas sem o espaço, adiciona o espaço
-                    elif codigo_al_me.upper().startswith("AL"):
-                        codigo_al_me = "AL " + codigo_al_me[2:].strip()
-                        break
-                    else:
-                        # Se não começa com AL, adiciona do zero
-                        codigo_al_me = "AL " + codigo_al_me
-                        break
-
+                codigo_al_me = pedir_codigo_al(arquivo)
                 processar_me(caminho_entrada, caminho_saida, codigo_al_me, caminho_log)
 
             elif arquivo == "OD.xlsx":
@@ -526,26 +510,7 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
                 caminho_log = os.path.join(
                     pasta_logs, f"log_processamento_od{ano_mes_anterior()}.txt"
                 )
-                while True:
-                    codigo_al_od = input(
-                        "Digite o código AL para o arquivo OD: "
-                    ).strip()
-
-                    if not codigo_al_od:
-                        print("⚠️ Código AL inválido ou não informado. Tente novamente.")
-                        continue  # Volta ao início do loop para pedir novamente
-
-                    # Verifica se o código já começa com "AL " (com espaço)
-                    if codigo_al_od.upper().startswith("AL "):
-                        break
-                    # Se começa com "AL" mas sem o espaço, adiciona o espaço
-                    elif codigo_al_od.upper().startswith("AL"):
-                        codigo_al_od = "AL " + codigo_al_od[2:].strip()
-                        break
-                    else:
-                        # Se não começa com AL, adiciona do zero
-                        codigo_al_od = "AL " + codigo_al_od
-                        break
+                codigo_al_od = pedir_codigo_al(arquivo)
                 processar_od(caminho_entrada, caminho_saida, codigo_al_od, caminho_log)
 
             elif arquivo == "RF.xlsx":
@@ -555,30 +520,11 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
                 caminho_log = os.path.join(
                     pasta_logs, f"log_processamento_rf{ano_mes_anterior()}.txt"
                 )
-                while True:
-                    codigo_al_rf = input(
-                        "Digite o código AL para o arquivo RF: "
-                    ).strip()
-
-                    if not codigo_al_rf:
-                        print("⚠️ Código AL inválido ou não informado. Tente novamente.")
-                        continue  # Volta ao início do loop para pedir novamente
-
-                    # Verifica se o código já começa com "AL " (com espaço)
-                    if codigo_al_rf.upper().startswith("AL "):
-                        break
-                    # Se começa com "AL" mas sem o espaço, adiciona o espaço
-                    elif codigo_al_rf.upper().startswith("AL"):
-                        codigo_al_rf = "AL " + codigo_al_rf[2:].strip()
-                        break
-                    else:
-                        # Se não começa com AL, adiciona do zero
-                        codigo_al_rf = "AL " + codigo_al_rf
-                        break
+                codigo_al_rf = pedir_codigo_al(arquivo)
                 processar_rf(caminho_entrada, caminho_saida, codigo_al_rf, caminho_log)
 
             # Verifica se o arquivo foi gerado e adiciona à lista
-            if os.path.exists(caminho_saida):
+            if caminho_saida and os.path.exists(caminho_saida):
                 arquivos_gerados.append(caminho_saida)
 
             escrever_no_log(f"Processamento concluído para {arquivo}.", caminho_log)
