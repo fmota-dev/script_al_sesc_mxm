@@ -95,11 +95,13 @@ def nome_documento(tipo: str) -> str:
 
 
 def salvar_excel_formatado(
-    df: pd.DataFrame, caminho_saida: str, caminho_log: str, colunas_formatar=None
+    df: pd.DataFrame,
+    caminho_saida: str,
+    caminho_log: str,
 ):
     try:
         # Salva o DataFrame diretamente sem aplicar formatação
-        df.to_excel(caminho_saida, index=False, sheet_name="Sheet1")
+        df.to_excel(caminho_saida, index=False)
 
         escrever_no_log(f"✅ Arquivo gerado com sucesso: {caminho_saida}", caminho_log)
 
@@ -137,19 +139,19 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
     # Agrupa os valores por CPF
     df_agrupado = df.groupby("CPF", as_index=False)["VALOR"].sum()
 
-    # Calcula o total geral e o valor de 70%
+    # Calcula o total geral e o valor de 50%
     valor_total = df_agrupado["VALOR"].sum()
-    valor_70 = arredondar(valor_total * 0.7)
+    valor_50 = arredondar(valor_total * 0.5)
 
-    # Distribui proporcionalmente o valor de 70%
-    df_agrupado["VALOR_DISTRIBUIDO"] = df_agrupado["VALOR"] / valor_total * valor_70
+    # Distribui proporcionalmente o valor de 50%
+    df_agrupado["VALOR_DISTRIBUIDO"] = df_agrupado["VALOR"] / valor_total * valor_50
     df_agrupado["VALOR_DISTRIBUIDO"] = df_agrupado["VALOR_DISTRIBUIDO"].apply(
         arredondar
     )
 
     # Ajuste de diferença por arredondamento
     soma_distribuida = df_agrupado["VALOR_DISTRIBUIDO"].sum()
-    diferenca = arredondar(valor_70 - soma_distribuida)
+    diferenca = arredondar(valor_50 - soma_distribuida)
     if diferenca != 0:
         df_agrupado.at[0, "VALOR_DISTRIBUIDO"] += diferenca
 
@@ -175,23 +177,23 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
         resultado.append(template)
         escrever_no_log(f"📌 Adicionando linha para CPF {row['CPF']}", caminho_log)
 
-    # Linha de 30%
-    valor_30 = arredondar(valor_total * 0.3)
-    linha_30 = TEMPLATE_IMPORTACAO_BASE.copy()
-    linha_30.update(
+    # Linha de 50%
+    valor_50 = arredondar(valor_total * 0.5)
+    linha_50 = TEMPLATE_IMPORTACAO_BASE.copy()
+    linha_50.update(
         {
             "DATA DO LANCAMENTO": data_lancamento,
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "31321019901001",
             "INDICADOR DE CONTA": "D",
-            "VALOR": valor_30,
+            "VALOR": valor_50,
             "HISTORICO": formatar_historico(codigo_al, area),
             "CENTRO DE CUSTO": "02053",
             "SEQUENCIA": len(resultado) + 1,
             "PROJETO": "20001",
         }
     )
-    resultado.append(linha_30)
+    resultado.append(linha_50)
 
     # Linha de 100%
     linha_total = TEMPLATE_IMPORTACAO_BASE.copy()
@@ -293,26 +295,26 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
             escrever_no_log(f"📌 Adicionando linha para CPF {cpf}", caminho_log)
             sequencia += 1
 
-    # Adicionando as duas linhas ao final (30% e 100%)
+    # Adicionando as duas linhas ao final (50% e 100%)
     valor_total = df_agrupado[valor_col].sum()
-    valor_desconto_30 = valor_total * 0.3
+    valor_desconto_50 = valor_total * 0.5
 
-    # Linha de 30% do valor total
-    linha_30_porcento = TEMPLATE_IMPORTACAO_BASE.copy()
-    linha_30_porcento.update(
+    # Linha de 50% do valor total
+    linha_50_porcento = TEMPLATE_IMPORTACAO_BASE.copy()
+    linha_50_porcento.update(
         {
             "DATA DO LANCAMENTO": data_lancamento,
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "31321019901001",
             "INDICADOR DE CONTA": "D",
-            "VALOR": arredondar(valor_desconto_30),
+            "VALOR": arredondar(valor_desconto_50),
             "HISTORICO": formatar_historico(codigo_al, area),
             "CENTRO DE CUSTO": "02050",
             "SEQUENCIA": sequencia,
             "PROJETO": "20001",
         }
     )
-    resultado.append(linha_30_porcento)
+    resultado.append(linha_50_porcento)
     sequencia += 1
 
     # Linha de 100% do valor total
