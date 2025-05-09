@@ -103,8 +103,6 @@ def salvar_excel_formatado(
         # Salva o DataFrame diretamente sem aplicar formatação
         df.to_excel(caminho_saida, index=False)
 
-        escrever_no_log(f"✅ Arquivo gerado com sucesso: {caminho_saida}", caminho_log)
-
     except Exception as e:
         escrever_no_log(f"⚠️ Erro ao salvar o arquivo {caminho_saida}: {e}", caminho_log)
 
@@ -139,61 +137,53 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
     # Agrupa os valores por CPF
     df_agrupado = df.groupby("CPF", as_index=False)["VALOR"].sum()
 
-    # Calcula o total geral e o valor de 50%
-    valor_total = df_agrupado["VALOR"].sum()
-    valor_50 = arredondar(valor_total * 0.5)
-
-    # Distribui proporcionalmente o valor de 50%
-    df_agrupado["VALOR_DISTRIBUIDO"] = df_agrupado["VALOR"] / valor_total * valor_50
-    df_agrupado["VALOR_DISTRIBUIDO"] = df_agrupado["VALOR_DISTRIBUIDO"].apply(
-        arredondar
-    )
-
-    # Ajuste de diferença por arredondamento
-    soma_distribuida = df_agrupado["VALOR_DISTRIBUIDO"].sum()
-    diferenca = arredondar(valor_50 - soma_distribuida)
-    if diferenca != 0:
-        df_agrupado.at[0, "VALOR_DISTRIBUIDO"] += diferenca
-
     # Dados fixos
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("ME")
     area = "ESPORTE"
     resultado = []
+    sequencia = 1
 
     # Gera os lançamentos para cada CPF
-    for idx, row in df_agrupado.iterrows():
-        template = TEMPLATE_IMPORTACAO_BASE.copy()
-        template.update(
+    for cpf in df_agrupado["CPF"]:
+        valores_cpf = df_agrupado[df_agrupado["CPF"] == cpf]
+        template_importacao = TEMPLATE_IMPORTACAO_BASE.copy()
+        template_importacao.update(
             {
                 "DATA DO LANCAMENTO": data_lancamento,
                 "DOCUMENTO": documento,
-                "VALOR": row["VALOR_DISTRIBUIDO"],
+                "VALOR": valores_cpf["VALOR"].values[0] * 0.5,
                 "HISTORICO": formatar_historico(codigo_al, area),
-                "SEQUENCIA": idx + 1,
-                "CLIENTE": row["CPF"],
+                "SEQUENCIA": sequencia,
+                "CLIENTE": cpf,
             }
         )
-        resultado.append(template)
-        escrever_no_log(f"📌 Adicionando linha para CPF {row['CPF']}", caminho_log)
+        resultado.append(template_importacao)
+        # escrever_no_log(
+        #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
+        #     caminho_log,
+        # )
+        sequencia += 1
+
+    valor_total = df_agrupado["VALOR"].sum()
+    valor_desconto_50 = valor_total * 0.5
 
     # Linha de 50%
-    valor_50 = arredondar(valor_total * 0.5)
-    linha_50 = TEMPLATE_IMPORTACAO_BASE.copy()
-    linha_50.update(
+    linha_50_porcento = TEMPLATE_IMPORTACAO_BASE.copy()
+    linha_50_porcento.update(
         {
             "DATA DO LANCAMENTO": data_lancamento,
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "31321019901001",
             "INDICADOR DE CONTA": "D",
-            "VALOR": valor_50,
+            "VALOR": arredondar(valor_desconto_50),
             "HISTORICO": formatar_historico(codigo_al, area),
             "CENTRO DE CUSTO": "02053",
             "SEQUENCIA": len(resultado) + 1,
             "PROJETO": "20001",
         }
     )
-    resultado.append(linha_50)
+    resultado.append(linha_50_porcento)
 
     # Linha de 100%
     linha_total = TEMPLATE_IMPORTACAO_BASE.copy()
@@ -203,16 +193,35 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "21881010101001",
             "INDICADOR DE CONTA": "C",
-            "VALOR": arredondar(valor_total),
+            "VALOR": arredondar(valor_desconto_50 * 2),
             "HISTORICO": formatar_historico(codigo_al, area),
             "SEQUENCIA": len(resultado) + 1,
         }
     )
     resultado.append(linha_total)
 
+    valor_total_final = linha_total["VALOR"]
+    valor_50_final = linha_50_porcento["VALOR"]
+
+    print(f"Valor total: {valor_total_final}")
+    print(f"Valor 50%: {valor_50_final}")
+
+    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
+        nova_metade = valor_total_final / 2
+        print(
+            f"⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}"
+        )
+        print(f"⚠️  Ajustando linha de 50% para: {nova_metade}")
+        resultado[-2]["VALOR"] = nova_metade
+    else:
+        print(
+            f"✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}"
+        )
+
     # Salvar o resultado
     df_final = pd.DataFrame(resultado)
     salvar_excel_formatado(df_final, caminho_saida, caminho_log)
+    escrever_no_log(f"✅ Arquivo ME gerado com sucesso: {caminho_saida}", caminho_log)
 
 
 # Função para processar o arquivo OD
@@ -271,7 +280,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
     sequencia = 1
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("OD")
-    area = "ODONTOLOGIA"
+    area = "CONSULTAS ODONTÓLOGICAS"
 
     # Iterando sobre os CPFs únicos
     for cpf in df_agrupado["CPF"]:
@@ -284,7 +293,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
                     "DOCUMENTO": documento,
                     "CONTA CONTABIL": "11381010101001",
                     "INDICADOR DE CONTA": "D",
-                    "VALOR": valores_cpf[valor_col].values[0] * 0.7,
+                    "VALOR": valores_cpf[valor_col].values[0] * 0.5,
                     "HISTORICO": formatar_historico(codigo_al, area),
                     "SEQUENCIA": sequencia,
                     "CLIENTE": cpf,
@@ -292,7 +301,10 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
             )
 
             resultado.append(template_importacao)
-            escrever_no_log(f"📌 Adicionando linha para CPF {cpf}", caminho_log)
+            # escrever_no_log(
+            #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
+            #     caminho_log,
+            # )
             sequencia += 1
 
     # Adicionando as duas linhas ao final (50% e 100%)
@@ -325,12 +337,30 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "21881010101001",
             "INDICADOR DE CONTA": "C",
-            "VALOR": arredondar(valor_total),
+            "VALOR": arredondar(valor_desconto_50 * 2),
             "HISTORICO": formatar_historico(codigo_al, area),
             "SEQUENCIA": sequencia,
         }
     )
     resultado.append(linha_total)
+
+    valor_total_final = linha_total["VALOR"]
+    valor_50_final = linha_50_porcento["VALOR"]
+
+    print(f"Valor total: {valor_total_final}")
+    print(f"Valor 50%: {valor_50_final}")
+
+    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
+        nova_metade = valor_total_final / 2
+        print(
+            f"⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}"
+        )
+        print(f"⚠️  Ajustando linha de 50% para: {nova_metade}")
+        resultado[-2]["VALOR"] = nova_metade
+    else:
+        print(
+            f"✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}"
+        )
 
     # Salvar em Excel
     df_final = pd.DataFrame(resultado)
@@ -399,7 +429,7 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
     sequencia = 1
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("RF")
-    area = "REFEIÇÕES E LANCHES"
+    area = "FORNECIMENTO DE REFEIÇÕES E LANCHES"
 
     # Iterar sobre os CPFs únicos e adicionar ao resultado
     for cpf in df[cpf_coluna].unique():
@@ -420,7 +450,10 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
             )
 
             resultado.append(template_importacao)
-            escrever_no_log(f"📌 Adicionando linha para CPF {cpf}", caminho_log)
+            # escrever_no_log(
+            #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
+            #     caminho_log,
+            # )
             sequencia += 1
 
     # Adicionar linha de total
@@ -487,7 +520,6 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
                 f"Erro: Arquivo {arquivo} não encontrado em {pasta_entrada}."
             )
             caminho_log_erro = os.path.join(pasta_logs, "erros_processamento.txt")
-            escrever_no_log(mensagem_erro, caminho_log_erro)
             continue  # Pula para o próximo arquivo
 
         try:
@@ -529,7 +561,7 @@ def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
             if caminho_saida and os.path.exists(caminho_saida):
                 arquivos_gerados.append(caminho_saida)
 
-            escrever_no_log(f"Processamento concluído para {arquivo}.", caminho_log)
+            escrever_no_log(f"🆗 Processamento concluído para {arquivo}.", caminho_log)
 
         except Exception as e:
             mensagem_erro = (

@@ -1,2 +1,0 @@
-[2025-04-27 01:04:32] Erro: Arquivo OD.xlsx não encontrado em C:\Users\fmota\Área de Trabalho\AL SESC-MXM.
-[2025-04-29 20:15:48] Erro: Arquivo OD.xlsx não encontrado em c:\Users\fmota\Área de Trabalho\AL SESC-MXM.

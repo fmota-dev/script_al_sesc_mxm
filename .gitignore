@@ -5,6 +5,7 @@ ME*.xlsx
 OD*.xlsx
 RF*.xlsx
 ME*.xlsx
+logs/*
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
