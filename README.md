@@ -17,7 +17,7 @@ Este script em Python automatiza o processamento de arquivos Excel contendo info
 
 ## 📂 Estrutura de Pastas Esperada
 
-```
+```plaintext
 /<pasta_do_script>
 ├── ME.xlsx
 ├── OD.xlsx

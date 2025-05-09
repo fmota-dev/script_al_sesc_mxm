@@ -6,6 +6,36 @@ from pathlib import Path
 
 import pandas as pd
 
+# Definindo o template de importação
+
+TEMPLATE_IMPORTACAO_BASE = {
+    # O que estiver como None será preenchido depois
+    "CODIGO DA EMPRESA": "07  ",
+    "LOTE": "CTB",
+    "DATA DO LANCAMENTO": None,
+    "DOCUMENTO": None,
+    "CONTA CONTABIL": "11381010101001",
+    "INDICADOR DE CONTA": "D",
+    "VALOR": None,
+    "HISTORICO": None,
+    "BRANCO": "",
+    "VALOR SEGUNDA MOEDA": "",
+    "BRANCO2": "",
+    "CENTRO DE CUSTO": "",
+    "SEQUENCIA": None,
+    "PROJETO": "",
+    "FORNECEDOR": "",
+    "CLIENTE": None,
+    "VALOR SEGUNDA MOEDA2": "",
+    "HIST PADRAO": "",
+    "HIST. PADRAO - COMPLEMENTO 1": "",
+    "HIST. PADRAO - COMPLEMENTO 2": "",
+    "HIST. PADRAO - COMPLEMENTO 3": "",
+    "NUMERO DO TITULO": "",
+    "CONVERTER MOEDA": "N",
+    "EXCLUIR LANÇAMENTOS": "N",
+}
+
 # Função para pegar o último dia do mês anterior
 
 
@@ -57,34 +87,7 @@ def escrever_no_log(mensagem, caminho_log):
         print(f"Erro ao escrever no log: {e}")
 
 
-# Modelo para importação
-
-TEMPLATE_IMPORTACAO_BASE = {
-    "CODIGO DA EMPRESA": "07  ",
-    "LOTE": "CTB",
-    "DATA DO LANCAMENTO": None,  # Será preenchido depois
-    "DOCUMENTO": None,  # Será preenchido depois
-    "CONTA CONTABIL": "11381010101001",
-    "INDICADOR DE CONTA": "D",
-    "VALOR": None,  # Será preenchido depois
-    "HISTORICO": None,  # Será preenchido depois
-    "BRANCO": "",
-    "VALOR SEGUNDA MOEDA": "",
-    "BRANCO2": "",
-    "CENTRO DE CUSTO": "",
-    "SEQUENCIA": None,  # Será preenchido depois
-    "PROJETO": "",
-    "FORNECEDOR": "",
-    "CLIENTE": None,  # Será preenchido depois
-    "VALOR SEGUNDA MOEDA2": "",
-    "HIST PADRAO": "",
-    "HIST. PADRAO - COMPLEMENTO 1": "",
-    "HIST. PADRAO - COMPLEMENTO 2": "",
-    "HIST. PADRAO - COMPLEMENTO 3": "",
-    "NUMERO DO TITULO": "",
-    "CONVERTER MOEDA": "N",
-    "EXCLUIR LANÇAMENTOS": "N",
-}
+# Função para gerar o nome do documento
 
 
 def nome_documento(tipo: str) -> str:
@@ -92,6 +95,9 @@ def nome_documento(tipo: str) -> str:
     mes = hoje.month - 1 or 12
     ano = hoje.year if hoje.month > 1 else hoje.year - 1
     return f"{tipo.upper()}{mes:02d}{ano % 100:02d}"
+
+
+# Função para salvar o novo DataFrame em Excel
 
 
 def salvar_excel_formatado(
@@ -105,6 +111,23 @@ def salvar_excel_formatado(
 
     except Exception as e:
         escrever_no_log(f"⚠️ Erro ao salvar o arquivo {caminho_saida}: {e}", caminho_log)
+
+
+# Função para verificar se o valor total é igual ao valor de 50% * 2
+
+
+def verificar_valores(valor_total_final, valor_50_final, resultado):
+    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
+        nova_metade = valor_total_final / 2
+        print(
+            f"⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}"
+        )
+        print(f"⚠️  Ajustando linha de 50% para: {nova_metade}")
+        resultado[-2]["VALOR"] = nova_metade
+    else:
+        print(
+            f"✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}"
+        )
 
 
 # Função para processar o arquivo ME
@@ -141,7 +164,7 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("ME")
     area = "ESPORTE"
-    resultado = []
+    planilha_final = []
     sequencia = 1
 
     # Gera os lançamentos para cada CPF
@@ -158,7 +181,7 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
                 "CLIENTE": cpf,
             }
         )
-        resultado.append(template_importacao)
+        planilha_final.append(template_importacao)
         # escrever_no_log(
         #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
         #     caminho_log,
@@ -179,11 +202,11 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
             "VALOR": arredondar(valor_desconto_50),
             "HISTORICO": formatar_historico(codigo_al, area),
             "CENTRO DE CUSTO": "02053",
-            "SEQUENCIA": len(resultado) + 1,
+            "SEQUENCIA": len(planilha_final) + 1,
             "PROJETO": "20001",
         }
     )
-    resultado.append(linha_50_porcento)
+    planilha_final.append(linha_50_porcento)
 
     # Linha de 100%
     linha_total = TEMPLATE_IMPORTACAO_BASE.copy()
@@ -195,10 +218,10 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
             "INDICADOR DE CONTA": "C",
             "VALOR": arredondar(valor_desconto_50 * 2),
             "HISTORICO": formatar_historico(codigo_al, area),
-            "SEQUENCIA": len(resultado) + 1,
+            "SEQUENCIA": len(planilha_final) + 1,
         }
     )
-    resultado.append(linha_total)
+    planilha_final.append(linha_total)
 
     valor_total_final = linha_total["VALOR"]
     valor_50_final = linha_50_porcento["VALOR"]
@@ -206,20 +229,12 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
     print(f"Valor total: {valor_total_final}")
     print(f"Valor 50%: {valor_50_final}")
 
-    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
-        nova_metade = valor_total_final / 2
-        print(
-            f"⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}"
-        )
-        print(f"⚠️  Ajustando linha de 50% para: {nova_metade}")
-        resultado[-2]["VALOR"] = nova_metade
-    else:
-        print(
-            f"✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}"
-        )
+    # Verifica se o valor total é igual ao valor de 50% * 2
+
+    verificar_valores(valor_total_final, valor_50_final, planilha_final)
 
     # Salvar o resultado
-    df_final = pd.DataFrame(resultado)
+    df_final = pd.DataFrame(planilha_final)
     salvar_excel_formatado(df_final, caminho_saida, caminho_log)
     escrever_no_log(f"✅ Arquivo ME gerado com sucesso: {caminho_saida}", caminho_log)
 
@@ -276,7 +291,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
     )
 
     # Processamento final
-    resultado = []
+    planilha_final = []
     sequencia = 1
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("OD")
@@ -300,7 +315,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
                 }
             )
 
-            resultado.append(template_importacao)
+            planilha_final.append(template_importacao)
             # escrever_no_log(
             #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
             #     caminho_log,
@@ -326,7 +341,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
             "PROJETO": "20001",
         }
     )
-    resultado.append(linha_50_porcento)
+    planilha_final.append(linha_50_porcento)
     sequencia += 1
 
     # Linha de 100% do valor total
@@ -342,7 +357,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
             "SEQUENCIA": sequencia,
         }
     )
-    resultado.append(linha_total)
+    planilha_final.append(linha_total)
 
     valor_total_final = linha_total["VALOR"]
     valor_50_final = linha_50_porcento["VALOR"]
@@ -350,20 +365,10 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
     print(f"Valor total: {valor_total_final}")
     print(f"Valor 50%: {valor_50_final}")
 
-    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
-        nova_metade = valor_total_final / 2
-        print(
-            f"⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}"
-        )
-        print(f"⚠️  Ajustando linha de 50% para: {nova_metade}")
-        resultado[-2]["VALOR"] = nova_metade
-    else:
-        print(
-            f"✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}"
-        )
+    verificar_valores(valor_total_final, valor_50_final, planilha_final)
 
     # Salvar em Excel
-    df_final = pd.DataFrame(resultado)
+    df_final = pd.DataFrame(planilha_final)
     salvar_excel_formatado(df_final, caminho_saida, caminho_log)
     escrever_no_log(f"✅ Arquivo OD gerado com sucesso: {caminho_saida}", caminho_log)
 
@@ -401,10 +406,10 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
     escrever_no_log("📝 Última linha removida do DataFrame", caminho_log)
 
     # Alteração de CPF, garantindo que seja string e levando em conta a coluna correta
-    for i, row in df.iterrows():
-        cpf_original = row[cpf_coluna]
+    for i, cpf in df.iterrows():
+        cpf_original = cpf[cpf_coluna]
         # Verificar se existe a coluna 'CPF_TITULAR'
-        cpf_titular = row.get("CPF_TITULAR", None)
+        cpf_titular = cpf.get("CPF_TITULAR", None)
         if pd.notna(cpf_titular):
             df.at[i, cpf_coluna] = str(cpf_titular)  # Garantir que seja string
             escrever_no_log(
@@ -425,7 +430,7 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
     df_agrupado[valor_col] = df_agrupado[valor_col].apply(arredondar)
 
     # Processamento final
-    resultado = []
+    planilha_final = []
     sequencia = 1
     data_lancamento = ultimo_dia_mes_anterior()
     documento = nome_documento("RF")
@@ -449,7 +454,7 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
                 }
             )
 
-            resultado.append(template_importacao)
+            planilha_final.append(template_importacao)
             # escrever_no_log(
             #     f"📌 Adicionando linha para CPF {cpf} com valor {template_importacao['VALOR']}",
             #     caminho_log,
@@ -473,16 +478,16 @@ def processar_rf(caminho, caminho_saida, codigo_al, caminho_log):
         }
     )
 
-    resultado.append(linha_total)
+    planilha_final.append(linha_total)
     escrever_no_log("📊 Adicionando linha de total", caminho_log)
 
     # Salvar em Excel
-    df_final = pd.DataFrame(resultado)
+    df_final = pd.DataFrame(planilha_final)
     salvar_excel_formatado(df_final, caminho_saida, caminho_log)
     escrever_no_log(f"✅ Arquivo RF gerado com sucesso: {caminho_saida}", caminho_log)
 
 
-# Função para iterar por arquivos e processar conforme necessário
+# Função para pedir o código AL de forma genérica para qualquer arquivo
 
 
 def pedir_codigo_al(arquivo):
@@ -506,6 +511,9 @@ def pedir_codigo_al(arquivo):
             codigo_al = "AL " + codigo_al
             break
     return codigo_al
+
+
+# Função para iterar por arquivos e processar conforme necessário
 
 
 def processar_arquivos(pasta_entrada, pasta_saida, pasta_logs):
