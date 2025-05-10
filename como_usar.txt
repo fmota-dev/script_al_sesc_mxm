@@ -1,4 +1,0 @@
-PASSO 1 - Adicionar os arquivos do sesc na raiz da pasta AL SESC MXM e nomear com a sigla correspondente ao arquivo (ME, OD e RF)
-PASSO 2 - Abrir o arquivo "gerar_arquivos.exe"
-PÁSSO 3 - Ao executar irá solicitar que digite o código da AL referente a cada arquivo
-PASSO 4 - Os arquivos para importação serão colocados dentro da pasta arquivos_importacao
