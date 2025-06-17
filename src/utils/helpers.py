@@ -1,6 +1,8 @@
 import datetime
-import math
+import tkinter as tk
 from decimal import ROUND_HALF_UP, Decimal
+
+import customtkinter as ctk
 
 
 def truncar_se_mais_de_duas_casas(valor, acumulador):
@@ -42,15 +44,70 @@ def formatar_historico(codigo_al, area):
     return f"{area} ({codigo_al} SESC) {ano_mes[4:]}/{ano_mes[:4]}"
 
 
+import customtkinter as ctk
+
+
 def pedir_codigo_al(arquivo):
-    while True:
-        codigo_al = input(f"Digite o código AL para o arquivo {arquivo}: ").strip()
-        if not codigo_al:
-            print("⚠️ Código AL inválido. Tente novamente.")
-            continue
-        if codigo_al.upper().startswith("AL "):
-            return codigo_al
-        elif codigo_al.upper().startswith("AL"):
-            return "AL " + codigo_al[2:].strip()
-        else:
-            return "AL " + codigo_al
+    class DialogCodigoAL(ctk.CTkToplevel):
+        def __init__(self, parent, arquivo):
+            super().__init__(parent)
+            self.title("Código AL")
+            self.geometry("360x180")
+            self.resizable(False, False)
+            self.transient(parent)
+            self.grab_set()
+            self.codigo = None
+
+            self.label = ctk.CTkLabel(
+                self, text=f"Digite o código AL para o arquivo {arquivo}:"
+            )
+            self.label.pack(pady=(20, 12), padx=20)
+
+            self.entry = ctk.CTkEntry(self, width=320)
+            self.entry.pack(pady=(0, 12), padx=20)
+            self.entry.focus()
+
+            self.lbl_aviso = ctk.CTkLabel(self, text="", text_color="red")
+            self.lbl_aviso.pack(pady=(0, 10), padx=20)
+
+            frame_botoes = ctk.CTkFrame(self, fg_color="transparent")
+            frame_botoes.pack(pady=5, padx=20, fill="x")
+
+            btn_ok = ctk.CTkButton(
+                frame_botoes, text="OK", width=140, command=self.on_ok
+            )
+            btn_ok.pack(side="left", padx=(0, 15))
+
+            btn_cancel = ctk.CTkButton(
+                frame_botoes, text="Cancelar", width=140, command=self.on_cancel
+            )
+            btn_cancel.pack(side="left")
+
+            self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+
+        def on_ok(self):
+            valor = self.entry.get().strip()
+            if not valor:
+                self.lbl_aviso.configure(text="⚠️ Código AL inválido. Tente novamente.")
+                return
+            valor_upper = valor.upper()
+            if valor_upper.startswith("AL "):
+                self.codigo = valor
+            elif valor_upper.startswith("AL"):
+                self.codigo = "AL " + valor[2:].strip()
+            else:
+                self.codigo = "AL " + valor
+            self.destroy()
+
+        def on_cancel(self):
+            self.codigo = None
+            self.destroy()
+
+    root = ctk.CTk()
+    root.withdraw()
+
+    dialog = DialogCodigoAL(root, arquivo)
+    root.wait_window(dialog)
+
+    root.destroy()
+    return dialog.codigo
