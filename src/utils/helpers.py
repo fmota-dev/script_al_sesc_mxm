@@ -1,5 +1,15 @@
 import datetime
+import math
 from decimal import ROUND_HALF_UP, Decimal
+
+
+def truncar_se_mais_de_duas_casas(valor, acumulador):
+    partes = str(valor).split(".")
+    if len(partes) == 2 and len(partes[1]) > 2:
+        truncado = int(valor * 100) / 100
+        acumulador["truncado"] += valor - truncado
+        return truncado
+    return valor
 
 
 def arredondar(valor):
@@ -29,7 +39,7 @@ def nome_documento(tipo: str) -> str:
 
 def formatar_historico(codigo_al, area):
     ano_mes = ano_mes_anterior()
-    return f"MENSALIDADE {area} ({codigo_al} SESC) {ano_mes[4:]}/{ano_mes[:4]}"
+    return f"{area} ({codigo_al} SESC) {ano_mes[4:]}/{ano_mes[:4]}"
 
 
 def pedir_codigo_al(arquivo):

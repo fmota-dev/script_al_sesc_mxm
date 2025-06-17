@@ -1,3 +1,5 @@
+import math
+
 import pandas as pd
 
 from config import TEMPLATE_IMPORTACAO_BASE
@@ -5,25 +7,10 @@ from utils.helpers import (
     arredondar,
     formatar_historico,
     nome_documento,
+    truncar_se_mais_de_duas_casas,
     ultimo_dia_mes_anterior,
 )
 from utils.log import escrever_no_log
-
-
-def verificar_valores(valor_total_final, valor_50_final, planilha_final, caminho_log):
-    if arredondar(valor_total_final) != arredondar(valor_50_final * 2):
-        nova_metade = valor_total_final / 2
-        escrever_no_log(
-            "⚠️  O valor total {valor_total_final} é diferente do valor de 50% {valor_50_final * 2}",
-            caminho_log,
-        )
-        escrever_no_log("⚠️  Ajustando linha de 50% para: {nova_metade}", caminho_log)
-        planilha_final[-2]["VALOR"] = nova_metade
-    else:
-        escrever_no_log(
-            "✅ O valor total {valor_total_final} é igual ao valor de 50% {valor_50_final * 2}",
-            caminho_log,
-        )
 
 
 def salvar_excel_formatado(df: pd.DataFrame, caminho_saida: str, caminho_log: str):
@@ -35,6 +22,7 @@ def salvar_excel_formatado(df: pd.DataFrame, caminho_saida: str, caminho_log: st
 
 def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
     escrever_no_log("🔹 Iniciando processamento do arquivo OD...", caminho_log)
+    acumulador = {"truncado": 0.0}
     df = pd.read_excel(caminho, dtype={"CPF": str, "CPF_TITULAR": str})
 
     valor_col = None
@@ -90,7 +78,9 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
                     "DOCUMENTO": documento,
                     "CONTA CONTABIL": "11381010101001",
                     "INDICADOR DE CONTA": "D",
-                    "VALOR": valores_cpf[valor_col].values[0] * 0.5,
+                    "VALOR": truncar_se_mais_de_duas_casas(
+                        valores_cpf[valor_col].values[0] * 0.5, acumulador
+                    ),
                     "HISTORICO": formatar_historico(codigo_al, area),
                     "SEQUENCIA": sequencia,
                     "CLIENTE": cpf,
@@ -132,10 +122,6 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
         }
     )
     planilha_final.append(linha_total)
-
-    verificar_valores(
-        linha_total["VALOR"], linha_50["VALOR"], planilha_final, caminho_log
-    )
 
     df_final = pd.DataFrame(planilha_final)
     salvar_excel_formatado(df_final, caminho_saida, caminho_log)

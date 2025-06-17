@@ -61,4 +61,13 @@ if __name__ == "__main__":
     pasta_saida = pasta_entrada / "arquivos_importacao"
     pasta_logs = pasta_entrada / "logs"
 
-    processar_arquivos(pasta_entrada, pasta_saida, pasta_logs)
+    try:
+        processar_arquivos(pasta_entrada, pasta_saida, pasta_logs)
+    except Exception as e:
+        escrever_no_log(
+            f"⚠️ Erro inesperado: {e}",
+            os.path.join(pasta_logs, "erros_processamento.txt"),
+        )
+        print(f"⚠️ Erro inesperado: {e}")
+    except KeyboardInterrupt:
+        print(f"\n❌ Processamento interrompido pelo usuário.")
