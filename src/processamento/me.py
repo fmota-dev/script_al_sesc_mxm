@@ -69,29 +69,40 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
     # Valor original (antes do truncamento)
     valor_total_original = df_agrupado["VALOR"].sum()
 
-    # Linha 50% (débito) - arredondado para 2 casas decimais
-    valor_linha_50 = round(valor_total_original * 0.5, 2)
-
-    # Soma dos CPFs truncados
+    # Linha 50% (débito) - sempre será calculado para garantir que débitos = crédito
+    # Soma dos CPFs truncados (antes de qualquer ajuste)
     valor_cpfs_truncado = sum(item["VALOR"] for item in planilha_final)
 
-    # Calcular diferença perdida no truncamento (em centavos)
-    diferenca_total = valor_linha_50 - valor_cpfs_truncado
-    centavos_faltando = round(diferenca_total * 100)
+    # A linha 50% é ajustada para que: CPFs + Linha50% = Valor_Original
+    valor_linha_50 = valor_total_original - valor_cpfs_truncado
 
-    # Distribuir centavos entre os CPFs até bater o valor exato
-    if centavos_faltando > 0:
+    # Calcular diferença para distribuir entre os CPFs (em centavos)
+    # Queremos que soma_cpfs fique o mais próximo possível de 50% do original
+    valor_50_ideal = round(valor_total_original * 0.5, 2)
+    diferenca_total = valor_50_ideal - valor_cpfs_truncado
+    centavos_para_ajustar = round(diferenca_total * 100)
+
+    # Distribuir centavos entre os CPFs (bidirecional: adicionar ou subtrair)
+    if centavos_para_ajustar != 0:
         cpfs_ajustados = 0
+        ajuste_unitario = 0.01 if centavos_para_ajustar > 0 else -0.01
+        centavos_restantes = abs(centavos_para_ajustar)
+
         for item in planilha_final:
-            if centavos_faltando <= 0:
+            if centavos_restantes <= 0:
                 break
             if "CLIENTE" in item:  # Garante que é uma linha de CPF
-                item["VALOR"] = round(item["VALOR"] + 0.01, 2)
-                centavos_faltando -= 1
+                item["VALOR"] = round(item["VALOR"] + ajuste_unitario, 2)
+                centavos_restantes -= 1
                 cpfs_ajustados += 1
 
+        # Recalcular linha 50% após ajustes nos CPFs
+        valor_cpfs_ajustado = sum(item["VALOR"] for item in planilha_final)
+        valor_linha_50 = valor_total_original - valor_cpfs_ajustado
+
+        acao = "adicionado" if centavos_para_ajustar > 0 else "subtraído"
         escrever_no_log(
-            f"🩹 Ajuste de truncamento: R$0.01 adicionado a {cpfs_ajustados} CPF(s) para compensar diferença.",
+            f"🩹 Ajuste de truncamento: R$0.01 {acao} de {cpfs_ajustados} CPF(s) para compensar diferença.",
             caminho_log,
         )
 
