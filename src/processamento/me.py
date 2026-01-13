@@ -65,29 +65,35 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
         planilha_final.append(template)
         sequencia += 1
 
-    # Se o truncamento total foi de R$0.01, adiciona a algum CPF que tenha 1 ou 0 casas decimais
-    if round(acumulador["truncado"], 6) == 0.01:
-        aplicado = False
+    # Calcular valores para as linhas contábeis
+    # Valor original (antes do truncamento)
+    valor_total_original = df_agrupado["VALOR"].sum()
+
+    # Linha 50% (débito) - arredondado para 2 casas decimais
+    valor_linha_50 = round(valor_total_original * 0.5, 2)
+
+    # Soma dos CPFs truncados
+    valor_cpfs_truncado = sum(item["VALOR"] for item in planilha_final)
+
+    # Calcular diferença perdida no truncamento (em centavos)
+    diferenca_total = valor_linha_50 - valor_cpfs_truncado
+    centavos_faltando = round(diferenca_total * 100)
+
+    # Distribuir centavos entre os CPFs até bater o valor exato
+    if centavos_faltando > 0:
+        cpfs_ajustados = 0
         for item in planilha_final:
-            if "CLIENTE" in item:  # Garante que é uma linha de CPF e não de totalização
-                casas_decimais = str(item["VALOR"]).split(".")
-                if len(casas_decimais) == 2 and len(casas_decimais[1]) < 2:
-                    item["VALOR"] += 0.01
-                    aplicado = True
-                    escrever_no_log(
-                        f"🩹 Ajuste aplicado: R$0.01 adicionado ao CPF {item['CLIENTE']} para compensar truncamento.",
-                        caminho_log,
-                    )
-                    break
+            if centavos_faltando <= 0:
+                break
+            if "CLIENTE" in item:  # Garante que é uma linha de CPF
+                item["VALOR"] = round(item["VALOR"] + 0.01, 2)
+                centavos_faltando -= 1
+                cpfs_ajustados += 1
 
-        if not aplicado:
-            escrever_no_log(
-                "⚠️ Nenhum CPF com 1 ou 0 casas decimais encontrado para aplicar o ajuste de R$0.01.",
-                caminho_log,
-            )
-
-    valor_total = df_agrupado["VALOR"].sum()
-    valor_desconto_50 = valor_total * 0.5
+        escrever_no_log(
+            f"🩹 Ajuste de truncamento: R$0.01 adicionado a {cpfs_ajustados} CPF(s) para compensar diferença.",
+            caminho_log,
+        )
 
     linha_50 = TEMPLATE_IMPORTACAO_BASE.copy()
     linha_50.update(
@@ -96,7 +102,7 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "31321019901001",
             "INDICADOR DE CONTA": "D",
-            "VALOR": valor_desconto_50,
+            "VALOR": valor_linha_50,
             "HISTORICO": f"MENSALIDADE {formatar_historico(codigo_al, area)}",
             "CENTRO DE CUSTO": "02053",
             "SEQUENCIA": len(planilha_final) + 1,
@@ -113,7 +119,7 @@ def processar_me(caminho, caminho_saida, codigo_al, caminho_log):
             "DOCUMENTO": documento,
             "CONTA CONTABIL": "21881010101001",
             "INDICADOR DE CONTA": "C",
-            "VALOR": valor_desconto_50 * 2,
+            "VALOR": valor_total_original,
             "HISTORICO": f"MENSALIDADE {formatar_historico(codigo_al, area)}",
             "SEQUENCIA": len(planilha_final) + 1,
         }

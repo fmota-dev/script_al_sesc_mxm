@@ -24,7 +24,10 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Processador de Arquivos - AL SESC")
-        self.iconbitmap(resource_path("src/logo-senac.ico"))
+        try:
+            self.iconbitmap(resource_path("logo-senac.ico"))
+        except Exception:
+            pass  # Ignora erro se o ícone não for encontrado
         self.geometry("700x250")
         self.resizable(False, False)
         self.configure(fg_color="#f9f9f9")
@@ -37,15 +40,21 @@ class App(ctk.CTk):
 
         # Carregando imagens PNG para os botões
         # ATENÇÃO: ajuste os caminhos para suas imagens PNG reais
-        self.icon_folder = ctk.CTkImage(
-            Image.open(resource_path("src/icons/folder1.png")), size=(20, 20)
-        )
-        self.icon_run = ctk.CTkImage(
-            Image.open(resource_path("src/icons/run1.png")), size=(20, 20)
-        )
-        self.icon_output = ctk.CTkImage(
-            Image.open(resource_path("src/icons/folder1.png")), size=(20, 20)
-        )
+        try:
+            self.icon_folder = ctk.CTkImage(
+                Image.open(resource_path("icons/folder1.png")), size=(20, 20)
+            )
+            self.icon_run = ctk.CTkImage(
+                Image.open(resource_path("icons/run1.png")), size=(20, 20)
+            )
+            self.icon_output = ctk.CTkImage(
+                Image.open(resource_path("icons/folder1.png")), size=(20, 20)
+            )
+        except Exception:
+            # Se os ícones não forem encontrados, usar None
+            self.icon_folder = None
+            self.icon_run = None
+            self.icon_output = None
 
         self.criar_interface()
 
