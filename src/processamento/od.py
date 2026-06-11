@@ -1,5 +1,3 @@
-import math
-
 import pandas as pd
 
 from config import TEMPLATE_IMPORTACAO_BASE
@@ -42,9 +40,11 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
     )
 
     df["CPF"] = df.apply(
-        lambda row: row["CPF_TITULAR"]
-        if pd.notnull(row["CPF_TITULAR"]) and row["CPF_TITULAR"] != row["CPF"]
-        else row["CPF"],
+        lambda row: (
+            row["CPF_TITULAR"]
+            if pd.notnull(row["CPF_TITULAR"]) and row["CPF_TITULAR"] != row["CPF"]
+            else row["CPF"]
+        ),
         axis=1,
     )
 
@@ -97,7 +97,7 @@ def processar_od(caminho, caminho_saida, codigo_al, caminho_log):
         {
             "DATA DO LANCAMENTO": data_lancamento,
             "DOCUMENTO": documento,
-            "CONTA CONTABIL": "31321019901001",
+            "CONTA CONTABIL": "31321010301001",
             "INDICADOR DE CONTA": "D",
             "VALOR": arredondar(valor_desconto_50),
             "HISTORICO": formatar_historico(codigo_al, area),
